@@ -18,12 +18,15 @@ ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["example.com"])
 # DATABASES
 # ------------------------------------------------------------------------------
 DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=60)
-DATABASES["default"]["OPTIONS"] = {
-    "pool": env.bool("SUPABASE_DB_POOL", default=True),
-    "pool_min_size": env.int("SUPABASE_DB_POOL_MIN", default=2),
-    "pool_max_size": env.int("SUPABASE_DB_POOL_MAX", default=20),
-    "connect_timeout": env.int("SUPABASE_DB_CONNECT_TIMEOUT", default=10),
-}
+# Supabase-specific pool settings (only when not using DATABASE_URL)
+if "DATABASE_URL" not in env:
+    DATABASES["default"]["OPTIONS"] = {
+        **DATABASES["default"].get("OPTIONS", {}),
+        "pool": env.bool("SUPABASE_DB_POOL", default=True),
+        "pool_min_size": env.int("SUPABASE_DB_POOL_MIN", default=2),
+        "pool_max_size": env.int("SUPABASE_DB_POOL_MAX", default=20),
+        "connect_timeout": env.int("SUPABASE_DB_CONNECT_TIMEOUT", default=10),
+    }
 
 # CACHES
 # ------------------------------------------------------------------------------
@@ -83,7 +86,7 @@ STORAGES = {
         },
     },
     "staticfiles": {
-        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
 MEDIA_URL = f"{SUPABASE_URL}/storage/v1/object/public/{env('SUPABASE_STORAGE_BUCKET', default='media')}/"
