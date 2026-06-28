@@ -26,7 +26,7 @@ from datetime import datetime, timedelta, timezone as dt_timezone
 
 from menu.models import Food, Category
 from .models import User, Invoice, InvoiceItem, KitchenOrder, KitchenOrderItem, RestaurantTable, LoyaltyCard, LoyaltyTransaction, QRTableOffer, TimeBasedOffer, TodayDeal
-from .loyalty_utils import generate_qr_code_image, generate_loyalty_card_pdf, generate_loyalty_card_image
+from .loyalty_utils import generate_qr_code_image, generate_loyalty_card_pdf, generate_loyalty_card_image, award_loyalty_points
 
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import mm
@@ -104,7 +104,6 @@ def food_delivery_login(request):
                 return redirect(next_url)
             # Auto-create loyalty card for online registered customers only
             if not user.is_staff and not getattr(user, "is_kitchen", False) and not user.is_superuser:
-                from .loyalty_utils import generate_qr_code_image, generate_loyalty_card_pdf, generate_loyalty_card_image
                 card, created = LoyaltyCard.objects.get_or_create(
                     user=user,
                     defaults={'status': 'ACTIVE'}
@@ -416,6 +415,9 @@ def _create_order_from_cart(cart, request, user=None, payment_method="card",
 
     invoice.generate_qr_code(request)
     invoice.save()
+
+    # Award loyalty points immediately at Pending status
+    award_loyalty_points(invoice)
 
     return invoice
 
@@ -1204,25 +1206,6 @@ def update_order_status(request, order_id):
             invoice = order.invoice
             invoice.generate_qr_code(request)
             invoice.save()
-
-            # Auto-earn loyalty points for delivered orders (online users only)
-            if invoice.user and not invoice.loyalty_points_processed:
-                card = LoyaltyCard.objects.filter(user=invoice.user, status='ACTIVE').first()
-                if card:
-                    total_points = 0
-                    for inv_item in invoice.items.all():
-                        from menu.models import Food
-                        food = Food.objects.filter(
-                            Q(name__iexact=inv_item.product_name.strip()) |
-                            Q(name__icontains=inv_item.product_name.strip())
-                        ).first()
-                        if food and food.reward_points > 0:
-                            total_points += food.reward_points * inv_item.quantity
-                    if total_points > 0:
-                        card.add_points(total_points, order.order_number)
-                        invoice.loyalty_points_earned = total_points
-                        invoice.loyalty_points_processed = True
-                        invoice.save()
         except Exception:
             pass
 

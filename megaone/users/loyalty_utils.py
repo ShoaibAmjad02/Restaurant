@@ -4,6 +4,7 @@ from io import BytesIO
 from django.urls import reverse
 from django.core.files.base import ContentFile
 from django.utils import timezone
+from django.db import transaction
 from reportlab.lib.units import mm
 from reportlab.lib.colors import HexColor
 from reportlab.lib.utils import ImageReader
@@ -286,3 +287,53 @@ def generate_loyalty_card_image(card, request=None):
     card.card_image.save(filename, ContentFile(buf.getvalue()), save=False)
     card.save(update_fields=['card_image'])
     return card
+
+
+def award_loyalty_points(invoice):
+    """
+    Centralized function to award loyalty points for an invoice/order.
+
+    - Awards points immediately (at Pending status).
+    - Uses invoice.loyalty_points_processed as idempotency guard.
+    - Wraps the operation in a database transaction.
+    - Calculates points from Food.reward_points for each invoice item.
+    - Returns the LoyaltyCard if points were awarded, None otherwise.
+    """
+    if invoice.loyalty_points_processed:
+        return None
+
+    if not invoice.user:
+        return None
+
+    try:
+        from .models import LoyaltyCard, LoyaltyTransaction
+        from menu.models import Food
+        from django.db.models import Q
+
+        card = LoyaltyCard.objects.filter(user=invoice.user, status='ACTIVE').first()
+        if not card:
+            return None
+
+        with transaction.atomic():
+            total_points = 0
+            for inv_item in invoice.items.all():
+                food = Food.objects.filter(
+                    Q(name__iexact=inv_item.product_name.strip()) |
+                    Q(name__icontains=inv_item.product_name.strip())
+                ).first()
+                if food and food.reward_points > 0:
+                    total_points += food.reward_points * inv_item.quantity
+
+            if total_points > 0:
+                card.add_points(total_points, getattr(invoice.kitchen_order, 'order_number', ''))
+                invoice.loyalty_points_earned = total_points
+                invoice.loyalty_points_processed = True
+                invoice.save(update_fields=['loyalty_points_earned', 'loyalty_points_processed'])
+                return card
+
+        invoice.loyalty_points_processed = True
+        invoice.save(update_fields=['loyalty_points_processed'])
+        return None
+
+    except Exception:
+        return None
