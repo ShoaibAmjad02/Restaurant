@@ -30,9 +30,22 @@ EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 # ------------------------------------------------------------------------------
 TEMPLATES[0]["OPTIONS"]["debug"] = True  # type: ignore[index]
 
+# STORAGES
+# ------------------------------------------------------------------------------
+# Use file system storage for tests to avoid Supabase dependency
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
 # MEDIA
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#media-url
-MEDIA_URL = "http://media.testserver"
+MEDIA_URL = "/media/"
+MEDIA_ROOT = str(BASE_DIR / "megaone" / "media")  # noqa: F405
 # Your stuff...
 # ------------------------------------------------------------------------------

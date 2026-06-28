@@ -1,6 +1,6 @@
 # Restaurant Management & Online Food Ordering System
 
-A full-stack restaurant management system with QR-based table ordering, kitchen display integration, loyalty program, time-based offers, and administrative controls. Built with Django 5.0 and MySQL.
+A full-stack restaurant management system with QR-based table ordering, kitchen display integration, loyalty program, time-based offers, and administrative controls. Built with Django 5.0 and Supabase PostgreSQL.
 
 ---
 
@@ -9,7 +9,9 @@ A full-stack restaurant management system with QR-based table ordering, kitchen 
 | Layer | Technology |
 |-------|-----------|
 | Backend | Python 3.12, Django 5.0.10 |
-| Database | MySQL 8.0 |
+| Database | Supabase PostgreSQL 15 |
+| Storage | Supabase Storage (S3-compatible) |
+| Realtime | Supabase Realtime (WebSocket) |
 | Frontend | Bootstrap 5.3, HTML5, CSS3, JavaScript (ES6) |
 | Authentication | django-allauth (email-only, MFA ready) |
 | PDF Generation | ReportLab (thermal 60mm receipts + loyalty cards) |
@@ -49,12 +51,12 @@ A full-stack restaurant management system with QR-based table ordering, kitchen 
 - **Offer Management** — CRUD for time-based offers with banner images, scheduling
 - **Deal Management** — CRUD for today's deals (free product, combo price, percentage), product assignment
 - **Loyalty Management** — view all loyalty cards, card details, toggle active/blocked, reset points, export CSV, reports
-- **MySQL Backup** — one-click database dump download
+- **Database Backup** — one-click PostgreSQL dump download via pg_dump
 - **Revenue Filtering** — filter revenue by date range
 - **Tax Analytics** — breakdown of card/cash tax collections
 
 ### Kitchen Features
-- **Kitchen Dashboard** — real-time view of incoming orders with status cards
+- **Kitchen Dashboard** — real-time view of incoming orders via Supabase Realtime subscriptions with status cards
 - **Order Status Updates** — toggle orders through Pending → Preparing → Ready → Delivered
 - **Auto Loyalty Earning** — points automatically awarded when order status reaches "Delivered"
 - **Order Search** — search kitchen orders by order number
@@ -254,7 +256,7 @@ Invoice *──1 TodayDeal
 ### Components
 - **Preloader** — animated spinner on page load
 - **Cart** — localStorage-based with minicart dropdown, quantity controls, subtotal display
-- **Order status tracking** — real-time polling (3-second interval) with 4-step visual progress (Pending/Preparing/Ready/Delivered)
+- **Order status tracking** — real-time updates via Supabase Realtime with 4-step visual progress (Pending/Preparing/Ready/Delivered)
 - **Product cards** — image, name, description, price, reward points badge, add-to-cart button
 - **Offer popup** — modal with time-based offer details
 - **Invoice receipt** — 58mm thermal PDF format, includes QR code for verification
@@ -291,7 +293,7 @@ Invoice *──1 TodayDeal
 - Offers (time-based: list, add, edit, delete)
 - Deals (today's deals: list, add, edit, delete)
 - Kitchen Users (list, create, edit, delete)
-- MySQL Backup
+- DB Backup (PostgreSQL pg_dump)
 - Logout
 ```
 
@@ -308,27 +310,46 @@ Invoice *──1 TodayDeal
 
 ### Requirements
 - Python 3.12+
-- MySQL 8.0+
+- Supabase account (free tier available at [supabase.com](https://supabase.com))
 - Redis (optional, for production caching)
 - pip + virtualenv
 
-### Environment Variables
-Create a `.env` file in the project root (optional, read when `DJANGO_READ_DOT_ENV_FILE=True`):
+### Supabase Project Setup
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DJANGO_DEBUG` | `False` | Debug mode |
-| `DJANGO_SECRET_KEY` | *(hardcoded in local)* | Secret key |
-| `DJANGO_ALLOWED_HOSTS` | `example.com` | Production allowed hosts |
-| `DATABASE_URL` | — | Database URL (production) |
-| `REDIS_URL` | `redis://localhost:6379/0` | Redis connection |
-| `DJANGO_EMAIL_BACKEND` | SMTP | Email backend |
-| `DJANGO_ACCOUNT_ALLOW_REGISTRATION` | `True` | Allow new registrations |
-| `AWS_ACCESS_KEY_ID` | — | S3 static/media (production) |
-| `AWS_SECRET_ACCESS_KEY` | — | S3 static/media (production) |
-| `AWS_STORAGE_BUCKET_NAME` | — | S3 bucket name |
-| `MAILGUN_API_KEY` | — | Mailgun email (production) |
-| `MAILGUN_API_URL` | `https://api.mailgun.net/v3` | Mailgun URL |
+1. **Create a Supabase project** at [https://supabase.com](https://supabase.com)
+2. Once created, go to **Project Settings > Database** and note your connection string
+3. Go to **Project Settings > API** to get your `anon public` key and `service_role` key
+4. Create a **Storage bucket** named `media` (or your preferred name) in **Storage > New Bucket**
+5. Enable **Realtime** for the `kitchen_orders` table in **Database > Replication**
+
+### Environment Variables
+
+Copy `.env.example` to `.env` and fill in your Supabase credentials:
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SUPABASE_URL` | Yes | Supabase project URL (`https://<project>.supabase.co`) |
+| `SUPABASE_KEY` | Yes | Supabase anon/public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service_role key (server-side only) |
+| `SUPABASE_DB_HOST` | Yes | Database host from Supabase project settings |
+| `SUPABASE_DB_NAME` | Yes | Database name (default: `postgres`) |
+| `SUPABASE_DB_USER` | Yes | Database user (default: `postgres`) |
+| `SUPABASE_DB_PASSWORD` | Yes | Database password |
+| `SUPABASE_DB_PORT` | No | Database port (default: `5432`) |
+| `SUPABASE_STORAGE_BUCKET` | No | Storage bucket name (default: `media`) |
+| `SUPABASE_REALTIME_ENABLED` | No | Enable Realtime subscriptions (default: `False`) |
+| `DJANGO_READ_DOT_ENV_FILE` | No | Set to `True` to read `.env` file |
+| `DJANGO_SECRET_KEY` | Yes | Django secret key |
+| `DJANGO_ALLOWED_HOSTS` | No | Comma-separated allowed hosts |
+| `DJANGO_DEBUG` | No | Debug mode (default: `False`) |
+| `REDIS_URL` | No | Redis connection URL |
+| `DJANGO_EMAIL_BACKEND` | No | Email backend |
+| `MAILGUN_API_KEY` | For mail | Mailgun API key |
+| `MAILGUN_DOMAIN` | For mail | Mailgun domain |
 
 ### Installation
 
@@ -345,8 +366,9 @@ source .venv/bin/activate  # Linux/Mac
 # 3. Install dependencies
 pip install -r requirements/local.txt
 
-# 4. Create MySQL database
-mysql -u root -p -e "CREATE DATABASE cafe CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+# 4. Configure environment
+cp .env.example .env
+# Edit .env with your Supabase credentials
 
 # 5. Run migrations
 python manage.py migrate
@@ -371,6 +393,90 @@ pytest
 
 ---
 
+## Deployment Guide
+
+### Supabase Setup
+
+1. **Create a Supabase project** at [https://supabase.com](https://supabase.com)
+2. **Get your credentials** from Project Settings → API:
+   - `Project URL` → `SUPABASE_URL`
+   - `anon public` key → `SUPABASE_KEY`
+   - `service_role` key → `SUPABASE_SERVICE_ROLE_KEY`
+3. **Get database credentials** from Project Settings → Database:
+   - `Connection string` → extract host, database name, user, password, port
+4. **Create Storage bucket** via Supabase Dashboard → Storage → New bucket:
+   - Name: `media`
+   - Public bucket: `false` (files served via signed URLs)
+5. **Enable Realtime** for the `kitchen_orders` table:
+   - Go to Database → Replication → Enable Realtime
+   - Subscribe to `kitchen_orders` table changes
+
+### Storage Buckets
+
+| Bucket | Purpose | Visibility |
+|--------|---------|------------|
+| `media` | All uploaded files | Private (signed URLs) |
+| `media/foods/` | Food images | Private |
+| `media/offer_banners/` | Offer banner images | Private |
+| `media/offer_popups/` | Offer popup images | Private |
+| `media/deal_images/` | Deal images | Private |
+| `media/deal_banners/` | Deal banners | Private |
+| `media/table_qrcodes/` | Table QR codes | Private |
+| `media/invoice_qrcodes/` | Invoice QR codes | Private |
+| `media/loyalty_qr/` | Loyalty card QR codes | Private |
+| `media/loyalty_cards/pdf/` | Loyalty card PDFs | Private |
+| `media/loyalty_cards/images/` | Loyalty card images | Private |
+
+### Deploy to Render
+
+1. Push code to GitHub
+2. Create a new **Web Service** on Render
+3. Set build command: `pip install -r requirements/production.txt`
+4. Set start command: `gunicorn config.wsgi:application`
+5. Add all environment variables from `.env.example`
+6. Deploy
+
+### Deploy to Railway
+
+1. Push code to GitHub
+2. Create a new project on Railway
+3. Connect your GitHub repository
+4. Railway auto-detects Django
+5. Add all environment variables
+6. Deploy
+
+### Deploy to DigitalOcean App Platform
+
+1. Push code to GitHub
+2. Create a new **App** on DigitalOcean
+3. Connect repository
+4. Set build command: `pip install -r requirements/production.txt`
+5. Set run command: `gunicorn config.wsgi:application`
+6. Add environment variables
+7. Deploy
+
+### Deploy to AWS (Elastic Beanstalk / ECS)
+
+1. Build Docker image using Python 3.12 base
+2. Set `DJANGO_SETTINGS_MODULE=config.settings.production`
+3. Configure all environment variables
+4. Use RDS Proxy or direct Supabase connection pooling
+
+### Docker Deployment
+
+```dockerfile
+FROM python:3.12-slim
+WORKDIR /app
+COPY requirements/production.txt .
+RUN pip install -r production.txt
+COPY . .
+ENV DJANGO_SETTINGS_MODULE=config.settings.production
+RUN python manage.py collectstatic --noinput
+CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000"]
+```
+
+---
+
 ## Project Structure
 
 ```
@@ -390,6 +496,11 @@ Restaurant Management System/
 │   │   └── food_delivery/           # Static template views
 │   │       ├── urls.py (6 routes)
 │   │       └── views.py (6 TemplateViews)
+│   ├── supabase/                    # Supabase integration
+│   │   ├── __init__.py
+│   │   ├── apps.py                  # App config
+│   │   ├── storage.py               # Custom Supabase Storage backend
+│   │   └── realtime.py              # Supabase Realtime subscriptions
 │   ├── contrib/sites/               # Custom sites migrations
 │   ├── static/                      # Static assets
 │   │   └── food-delivery/
@@ -443,10 +554,11 @@ Restaurant Management System/
 │   ├── fr_FR/LC_MESSAGES/django.po  # French (~40 strings)
 │   └── pt_BR/LC_MESSAGES/django.po  # Brazilian Portuguese (~40 strings)
 ├── requirements/
-│   ├── base.txt                     # Core: Django 5.0.10, allauth, Pillow, etc.
+│   ├── base.txt                     # Core: Django 5.0.10, supabase, psycopg, allauth, Pillow, etc.
 │   ├── local.txt                    # Dev: pytest, ruff, debug-toolbar, etc.
-│   └── production.txt               # Prod: gunicorn, S3, Mailgun, Redis
+│   └── production.txt               # Prod: gunicorn, Mailgun, Redis
 ├── utility/                         # Shell scripts for OS/Python setup
+├── .env.example                     # Environment variables template
 ├── manage.py
 ├── pyproject.toml                   # Pytest, coverage, mypy, ruff, djlint config
 ├── .pre-commit-config.yaml          # Pre-commit hooks
@@ -461,6 +573,7 @@ Restaurant Management System/
 ## Changelog
 
 ### Latest Updates (from git history)
+- **Supabase Migration** — migrated from MySQL to Supabase PostgreSQL, Storage, and Realtime
 - **Update login URL** for authentication flow, add warning message for unauthenticated users on loyalty card view
 - **Add popular products feature** to homepage, enhance Food model with `is_popular` field
 - **Update navigation** links to point to restaurant detail page and gallery section
@@ -472,12 +585,12 @@ Restaurant Management System/
 - **QR Table Menu** — menu access via table QR codes with token validation
 - **Guest Checkout** — order without account via session-based customer identification
 - **Invoice PDF generation** — 58mm thermal format with QR verification
-- **Order Tracking** — real-time polling with 4-step status visualizer
+- **Order Tracking** — real-time updates via Supabase Realtime with 4-step status visualizer
 - **Loyalty system** — auto card creation, earn/redeem points, PDF/PNG card generation
 - **Time-Based Offers** — scheduled offers with popup/banner display
 - **Today's Deals** — combo price, free product, percentage discount types
 - **Admin Dashboard** — 18 KPI cards with revenue, tax, order analytics
-- **Database backup** — one-click MySQL dump download
+- **Database backup** — one-click PostgreSQL dump download via pg_dump
 - **Multi-language support** — French, Brazilian Portuguese translations
 
 ---
@@ -485,7 +598,7 @@ Restaurant Management System/
 ## Future Improvements
 
 - [ ] **REST API layer** — migrate JSON endpoints to Django REST Framework with versioned API
-- [ ] **Real-time WebSocket** — replace 3-second polling in kitchen/order tracking with Django Channels
+- [ ] **Enhanced Realtime** — kitchen/order tracking uses Supabase Realtime (WebSocket-based)
 - [ ] **Payment gateway integration** — add Stripe/PayPal/SSLCommerz for online payments
 - [ ] **Docker production setup** — create Dockerfile and docker-compose.yml with Nginx + Gunicorn
 - [ ] **SMS notifications** — order status updates via Twilio or similar

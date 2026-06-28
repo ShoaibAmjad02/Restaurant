@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import uuid
 import subprocess
 import traceback
@@ -141,9 +142,9 @@ def logout_view(request):
 def home_view(request):
     active_offer = _get_active_time_offer()
     active_deal = _get_active_deal()
-    popular_products = Food.objects.filter(available=1, is_popular=True)[:6]
+    popular_products = Food.objects.filter(available=True, is_popular=True)[:6]
     if not popular_products:
-        popular_products = Food.objects.filter(available=1).order_by("-created_at")[:6]
+        popular_products = Food.objects.filter(available=True).order_by("-created_at")[:6]
     return render(request, "index.html", {
         "active_offer": active_offer,
         "active_deal": active_deal,
@@ -180,7 +181,7 @@ def qr_menu_view(request):
     else:
         return render(request, "food-delivery/qr_error.html", {"error": "Invalid QR code link."})
 
-    products = Food.objects.filter(available=1)
+    products = Food.objects.filter(available=True)
     active_offer = _get_active_time_offer()
     active_deal = _get_active_deal()
 
@@ -195,7 +196,7 @@ def qr_menu_view(request):
 
 @login_required(login_url='food-delivery:food_delivery_login')
 def food_delivery_restaurant_detail(request):
-    products = Food.objects.filter(available=1)
+    products = Food.objects.filter(available=True)
     active_offer = _get_active_time_offer()
     active_deal = _get_active_deal()
     return render(request, 'food-delivery/restaurant-detail.html', {
@@ -1451,17 +1452,26 @@ def generate_table_qr(request, pk):
 
 
 # =========================
-# MYSQL BACKUP
+# DATABASE BACKUP (PostgreSQL via pg_dump)
 # =========================
 
 
 @staff_member_required
-def mysql_backup(request):
+def database_backup(request):
     db = settings.DATABASES["default"]
-    MYSQLDUMP_PATH = r"C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqldump.exe"
+    env = {**os.environ, "PGPASSWORD": db["PASSWORD"]}
     result = subprocess.run(
-        [MYSQLDUMP_PATH, f"--user={db['USER']}", f"--password={db['PASSWORD']}", db["NAME"]],
-        capture_output=True, text=True,
+        [
+            "pg_dump",
+            f"--host={db['HOST']}",
+            f"--port={db['PORT']}",
+            f"--dbname={db['NAME']}",
+            f"--username={db['USER']}",
+            "--no-owner",
+            "--no-acl",
+            "--clean",
+        ],
+        capture_output=True, text=True, env=env,
     )
     if result.returncode != 0:
         return HttpResponse(result.stderr, status=500)

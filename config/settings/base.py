@@ -11,7 +11,7 @@ BASE_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
 APPS_DIR = BASE_DIR / "megaone"
 env = environ.Env()
 
-READ_DOT_ENV_FILE = env.bool("DJANGO_READ_DOT_ENV_FILE", default=False)
+READ_DOT_ENV_FILE = True
 if READ_DOT_ENV_FILE:
     # OS environment variables take precedence over variables from .env
     env.read_env(str(BASE_DIR / ".env"))
@@ -48,14 +48,17 @@ LOCALE_PATHS = [str(BASE_DIR / "locale")]
 # https://docs.djangoproject.com/en/dev/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'cafe',
-        'USER': 'root',
-        'PASSWORD': '123456',
-        'HOST': 'localhost',
-        'PORT': '3306',
-    }
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": env("SUPABASE_DB_NAME"),
+        "USER": env("SUPABASE_DB_USER"),
+        "PASSWORD": env("SUPABASE_DB_PASSWORD"),
+        "HOST": env("SUPABASE_DB_HOST"),
+        "PORT": env("SUPABASE_DB_PORT"),
+        "OPTIONS": {
+            "sslmode": "require",
+        },
+    },
 }
 
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
@@ -93,6 +96,7 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     "megaone.users",
+    "megaone.supabase",
 
     # Food Delivery Apps
     "menu",
@@ -176,6 +180,7 @@ STATICFILES_FINDERS = [
 # MEDIA
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#media-root
+# Media is served via Supabase Storage - kept for fallback
 MEDIA_ROOT = str(APPS_DIR / "media")
 # https://docs.djangoproject.com/en/dev/ref/settings/#media-url
 MEDIA_URL = "/media/"
@@ -276,10 +281,6 @@ LOGGING = {
     "root": {"level": "INFO", "handlers": ["console"]},
 }
 
-REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
-REDIS_SSL = REDIS_URL.startswith("rediss://")
-
-
 # django-allauth
 # ------------------------------------------------------------------------------
 ACCOUNT_ALLOW_REGISTRATION = env.bool("DJANGO_ACCOUNT_ALLOW_REGISTRATION", True)
@@ -302,6 +303,36 @@ SOCIALACCOUNT_ADAPTER = "megaone.users.adapters.SocialAccountAdapter"
 # https://docs.allauth.org/en/latest/socialaccount/configuration.html
 SOCIALACCOUNT_FORMS = {"signup": "megaone.users.forms.UserSocialSignupForm"}
 
+
+# SUPABASE
+# ------------------------------------------------------------------------------
+# https://supabase.com/docs/reference/python/introduction
+SUPABASE_URL = env("SUPABASE_URL", default="https://your-project.supabase.co")
+SUPABASE_KEY = env("SUPABASE_KEY", default="")
+SUPABASE_SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY", default="")
+SUPABASE_STORAGE_BUCKET = env("SUPABASE_STORAGE_BUCKET", default="media")
+SUPABASE_REALTIME_ENABLED = env.bool("SUPABASE_REALTIME_ENABLED", default=False)
+
+# STORAGES
+# ------------------------------------------------------------------------------
+# https://docs.djangoproject.com/en/dev/ref/settings/#storages
+STORAGES = {
+    "default": {
+        "BACKEND": "megaone.supabase.storage.SupabaseStorage",
+        "OPTIONS": {
+            "bucket_name": SUPABASE_STORAGE_BUCKET,
+            "public": False,
+        },
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
+# REDIS
+# ------------------------------------------------------------------------------
+REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
+REDIS_SSL = REDIS_URL.startswith("rediss://")
 
 # Your stuff...
 # ------------------------------------------------------------------------------

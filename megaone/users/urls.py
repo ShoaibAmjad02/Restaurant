@@ -86,7 +86,7 @@ urlpatterns = [
 
     # Auth
     path("login/", food_delivery_login, name="login"),
-    path("mysql-backup/", views.mysql_backup, name="mysql_backup"),
+    path("db-backup/", views.database_backup, name="database_backup"),
 
     # User
     path("<int:pk>/", user_detail_view, name="detail"),
