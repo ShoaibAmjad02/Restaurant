@@ -49,24 +49,49 @@ LOCALE_PATHS = [str(BASE_DIR / "locale")]
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#databases
 
-# Prefer DATABASE_URL (e.g. Render), fallback to individual SUPABASE_DB_* vars
+# Prefer DATABASE_URL (e.g. Render/Vercel), fallback to individual SUPABASE_DB_* vars
 if "DATABASE_URL" in env:
-    DATABASES = {"default": env.db("DATABASE_URL")}
-    DATABASES["default"]["OPTIONS"] = {"sslmode": "require"}
+    raw = env("DATABASE_URL")
+    if raw:
+        DATABASES = {"default": env.db("DATABASE_URL")}
+        DATABASES["default"]["OPTIONS"] = {"sslmode": "require"}
+    else:
+        DATABASES = None
 else:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": env("SUPABASE_DB_NAME"),
-            "USER": env("SUPABASE_DB_USER"),
-            "PASSWORD": env("SUPABASE_DB_PASSWORD"),
-            "HOST": env("SUPABASE_DB_HOST"),
-            "PORT": env("SUPABASE_DB_PORT"),
-            "OPTIONS": {
-                "sslmode": "require",
+    DATABASES = None
+
+# If neither DATABASE_URL nor SUPABASE_DB_* vars are set, use a safe fallback
+# that warns but doesn't crash during settings loading.
+if DATABASES is None:
+    SUPABASE_DB_NAME = env("SUPABASE_DB_NAME", default=None)
+    if SUPABASE_DB_NAME:
+        DATABASES = {
+            "default": {
+                "ENGINE": "django.db.backends.postgresql",
+                "NAME": SUPABASE_DB_NAME,
+                "USER": env("SUPABASE_DB_USER", default=""),
+                "PASSWORD": env("SUPABASE_DB_PASSWORD", default=""),
+                "HOST": env("SUPABASE_DB_HOST", default="localhost"),
+                "PORT": env("SUPABASE_DB_PORT", default="5432"),
+                "OPTIONS": {"sslmode": "require"},
             },
-        },
-    }
+        }
+    else:
+        # Graceful fallback — prevents FUNCTION_INVOCATION_FAILED when
+        # DATABASE_URL is absent.  The app will see a clear
+        # OperationalError when the first DB query is attempted.
+        DATABASES = {
+            "default": {
+                "ENGINE": "django.db.backends.sqlite3",
+                "NAME": ":memory:",
+            },
+        }
+        import warnings
+        warnings.warn(
+            "DATABASE_URL is not set. Configure it in your Vercel environment variables.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
 
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
 # https://docs.djangoproject.com/en/stable/ref/settings/#std:setting-DEFAULT_AUTO_FIELD
