@@ -65,8 +65,8 @@ docs/_build/
 # PyBuilder
 target/
 
-# pyenv
-.python-version
+# pyenv (uncomment to stop tracking Python version in git)
+# .python-version
 
 
 
