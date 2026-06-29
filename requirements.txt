@@ -3,6 +3,7 @@ django==5.0.10
 django-environ==0.11.2
 django-model-utils==5.0.0
 django-allauth[mfa]==65.3.1
+fido2<2.0.0
 django-crispy-forms==2.3
 crispy-bootstrap5==2024.10
 django-redis==5.4.0
@@ -19,6 +20,12 @@ Pillow==11.1.0
 redis==5.2.1
 hiredis==3.1.0
 argon2-cffi==23.1.0
+
+# PDF generation (imported at module level in views.py)
+reportlab==4.2.5
+
+# QR code generation (imported at module level in models.py & views.py)
+qrcode==7.4.2
 
 # Static file serving (Render/Vercel single-service deployment)
 whitenoise==6.8.1
