@@ -53,6 +53,12 @@ coverage.xml
 # Django stuff:
 staticfiles/
 
+# Environment variables
+.env
+
+# Vercel
+.vercel
+
 # Sphinx documentation
 docs/_build/
 
